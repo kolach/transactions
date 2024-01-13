@@ -17,6 +17,7 @@ func TestHandler(t *testing.T) {
 			// mock a request with an empty SourceIP
 			name: "empty IP",
 			request: events.APIGatewayProxyRequest{
+				HTTPMethod: "GET",
 				RequestContext: events.APIGatewayProxyRequestContext{
 					Identity: events.APIGatewayRequestIdentity{
 						SourceIP: "",
@@ -30,6 +31,7 @@ func TestHandler(t *testing.T) {
 			// mock a request with a localhost SourceIP
 			name: "localhost IP",
 			request: events.APIGatewayProxyRequest{
+				HTTPMethod: "GET",
 				RequestContext: events.APIGatewayProxyRequestContext{
 					Identity: events.APIGatewayRequestIdentity{
 						SourceIP: "127.0.0.1",

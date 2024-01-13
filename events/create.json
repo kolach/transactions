@@ -1,8 +1,8 @@
 {
-    "body": "{\"message\": \"hello world\"}",
+    "body": "{\"id\": \"01f8f7ba-11eb-4f2a-b0fa-a53274fd55ca\"}",
     "resource": "/transactions",
     "path": "/transactions",
-    "httpMethod": "GET",
+    "httpMethod": "POST",
     "isBase64Encoded": false,
     "queryStringParameters": {
       "foo": "bar"
