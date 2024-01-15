@@ -2,8 +2,7 @@
 
 ## System design
 
-Transactions project is AWS SAM project that deligates all transactions API to serverless
-lambda funtion interaction with DynamoDB table.
+The Transactions project is an AWS SAM project that delegates all transaction APIs to a serverless Lambda function that uses DynamoDB service to store and retrieve transaction data.
 
 ```bash
 +------------------+      +---------------------+      +-------------------+
@@ -13,15 +12,13 @@ lambda funtion interaction with DynamoDB table.
 +------------------+      +---------------------+      +-------------------+
 ```
 
-The main benefit of this approach is that it perfectly scheduled horizontally on application
-and database layers and is charged only when it is used.
+The main benefit of this approach is that it scales perfectly horizontally at both the application and database levels, and it is charged only when it is being used.
 
 ## Data model
 
-The system design is centerd around multi tenant application where multitude of users are entering their
-transations and have a way to monitor them.
+The system design is centered around a multi-tenant application where a multitude of users are entering their transactions and have a way to monitor them.
 
-Bellow is the transaction data model:
+Below is the transaction data model:
 
 ```bash
 +------------------------------------------------------------------------------------------------+
@@ -38,12 +35,11 @@ Bellow is the transaction data model:
 
 ```
 
-User ID (user_id) is set as partition in attempt to evenly distribute incoming transactions across dynamodb shards.
-Timstamp (ts) is used as a sort key.
+The User ID (user_id) is set as the partition key in an attempt to evenly distribute incoming transactions across DynamoDB shards. The Timestamp (ts) is used as a sort key.
 
-Together they form a primary key. Should there be any concern that there can exist transactions with same
-user ID and timestamp (in microseconds) the design can accomodate it with making sort key as composition key
-of typestamp and the unique transaction ID (tr_id).
+Together, they form a primary key. Should there be any concern that transactions with the same user ID and timestamp (in microseconds) might exist, the design can accommodate this by making the sort key a composite key of the timestamp and the unique transaction ID (tr_id).
+User ID (user_id) is set as partition key in attempt to evenly distribute incoming transactions across dynamodb shards.
+Timstamp (ts) is used as a sort key.
 
 ## Project structure
 
@@ -57,8 +53,8 @@ These are main files for transactions with brief explanation:
 │   ├── transactions            <-- Lambda function code
 │   │   ├── main.go             <-- Lambda function code
 │   │   └── main-test.go        <-- Lambda function tests
-│   └── populate                <-- Lambda function code
-│       └── main.go             <-- Script to massively call your lambda functions to add new random transactions
+│   └── populate                <-- CLI tool to send POST random transaction requests to AWS transactions API endpoint
+│       └── main.go             <-- CLI tool code
 ├── internal                    <-- Root directory for internal packages
 │   └── db                      <-- Package to work with DynamoDB (add, remove, list, scan records)
 │       ├── client.go           <-- Client to perform all CRUD operations
@@ -71,11 +67,11 @@ These are main files for transactions with brief explanation:
 
 ## Prerequisites
 
-The prerequisites to deploy the project are pretty common. If you are already got your hands dirty with AWS services,
-most likely you already have it all installed.
 
-Follow the [link](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/prerequisites.html) for details
-and it'll guide you through the following steps:
+The prerequisites for deploying the project are quite common. If you've already had experience with AWS services, you most likely have everything installed.
+
+For detailed instructions, follow the link: [link](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/prerequisites.html) for details
+and it will guide you through the following steps::
 
 1. Sign up for an AWS account
 2. Create an IAM user account
@@ -100,7 +96,7 @@ Deploying the target:
 make deploy
 ```
 
-Answer the questions to make a deployment. Pay attention to final output parameters to grab your TransactionsAPI url.
+Answer the questions to complete the deployment. Pay close attention to the final output parameters to obtain your TransactionsAPI URL.
 
 
 ```shell
@@ -120,8 +116,7 @@ We will need that URL in the next chapter.
 
 ## Interacting with Transaction API
 
-Let's use the API URL that we found in previous chapter to create and list transactions. We start with creating.
-To create a new transaction send a POST request:
+Let's use the API URL obtained from the previous chapter to create and list transactions. We'll start with creation. To create a new transaction, send a POST request:
 
 ```bash
 curl -X POST -H "Content-Type: application/json" -d '{"user_id":"john", "amount":1,"origin":"desktop", "operation_type":"credit"}' $TRANSACTIONS_API
@@ -130,16 +125,15 @@ curl -X POST -H "Content-Type: application/json" -d '{"user_id":"john", "amount"
 curl -X POST -H "Content-Type: application/json" -d '{"user_id":"john", "amount":1,"origin":"desktop", "operation_type":"debit"}' $TRANSACTIONS_API
 ```
 
-You would need to define TRANSACTIONS_API endpoint as an environment variable or use real URL instead.
-Use the example above to create a few more transactions.
+You will need to define the TRANSACTIONS_API endpoint as an environment variable, or alternatively, use the actual URL directly. Utilize the example provided above to create a few more transactions.
 
-Now let's list transactions. To list transactions we need to make GET request and use a partition key (user_id) and sort key (ts) as a path parameters:
+Now, let's move on to listing transactions. To list transactions, we need to make a GET request and use a partition key (user_id) and a sort key (ts) as path parameters:
 
 ```shell
 $TRANSACTIONS_API/{user_id}/{ts}
 ```
 
-Timestamp is used as a prefix (begins_with filter). So to get all transactions that belong to `john` dated by 2024 year we need to send request:
+The timestamp is used as a prefix (using the 'begins_with' filter). Therefore, to retrieve all transactions belonging to john dated in the year 2024, we need to send the following request:
 
 
 ```shell
@@ -165,22 +159,19 @@ curl -s $TRANSACTIONS_API/john/2024 | jq
   ]
 }
 ```
+The returned JSON object contains two fields:
 
-The returned JSON object has 2 fields:
+items - an array of transactions.
+cursor - a string that, if returned, represents a cursor for the next page. See below for details.
+The list request supports the following optional query parameters (as URL query parameters):
 
-* items - array  of transactions
-* cursor - string, if returned, represents a cursor for the next page. See bellow.
+origin: string
+operation_type: string
+limit: number (to limit the maximum number of returned records)
+after: string (a cursor pagination parameter to supply in order to get the next page)
+Use the cursor attribute from the returned object to access the next page of data.
 
-The list request supports following optional query parameters (as url query parameters):
-
-* origin: string
-* operation_type: string
-* limit: number (to limit maximum number of returned records)
-* after: string (cursor pagination parameter to supply to get next page)
-
-Use `cursor` attribute of returned object to get the next page of data.
-
-Let's make a sample query to get john's credit transactions:
+Now, let's make a sample query to retrieve credit transactions for `john`:
 
 ```bash
 curl -s "$TRANSACTIONS_API/john/2024?operation_type=credit" | jq
@@ -200,17 +191,15 @@ curl -s "$TRANSACTIONS_API/john/2024?operation_type=credit" | jq
 
 ## Limitations and things to improve
 
-It's supposed AWS to scale lambdas according to configured concurrency parameter. But it depends on AWS account settings.
-For example my account currently only have it 10. Which does not allow me to have lambda scaled more than 10 instances.
-It of cause impacts the performance as requests are throttled when all lambdas are up and busy.
+It's expected for AWS to scale Lambdas according to the configured concurrency parameter, but this depends on the settings of the AWS account. For example, my account currently has a concurrency limit of only 10. This limitation restricts the scaling of Lambda instances to no more than 10, and impact performance as requests may be throttled when all Lambdas are active and busy.
 
-Having tamestamp prefix parameter in URL path proved to be not the best option as to filter transactions by minutes
-and further reuires to add `:` symbol and it's a problem to have it in URL path. It works fine in query parameters if replaced
-by `%3A`.
+Using the timestamp prefix as a parameter in the URL path proved to be suboptimal for filtering transactions by minutes. This is because adding the : symbol, which is necessary for minute-level filtering, can cause issues in the URL path. However, it works fine in query parameters if replaced with %3A.
 
-Handlers have basic tests. But though even they are calling DynamoDB internal package, they deserve their own test package.
+The handlers are equipped with basic tests. Although they call the DynamoDB internal package, they would benefit from having their own dedicated test package.
 
-### Running tests
+Need to find a way to better integrate Swagger into the project.
+
+## Running tests
 
 `docker` and `docker-compose` is required to run tests. As they are used to run local version of dynamodb.
 Use following command to run tests:
