@@ -17,7 +17,7 @@ import (
 
 const (
 	INSERT_TIMEOUT = 10 * time.Second
-	LIST_TIMEOUT   = 5 * time.Second
+	LIST_TIMEOUT   = 10 * time.Second
 )
 
 var client *db.Client

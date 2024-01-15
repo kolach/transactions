@@ -116,110 +116,105 @@ In the example above the following URL is the transactions API URL to interact w
 https://xyzxy18zxy.execute-api.us-east-1.amazonaws.com/Prod/transactions/
 ```
 
-### Local development
+We will need that URL in the next chapter.
 
-**Invoking function locally through local API Gateway**
+## Interacting with Transaction API
 
-```bash
-sam local start-api
-```
-
-If the previous command ran successfully you should now be able to hit the following local endpoint to invoke your function `http://localhost:3000/hello`
-
-**SAM CLI** is used to emulate both Lambda and API Gateway locally and uses our `template.yaml` to understand how to bootstrap this environment (runtime, where the source code is, etc.) - The following excerpt is what the CLI will read in order to initialize an API and its routes:
-
-```yaml
-...
-Events:
-    HelloWorld:
-        Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
-        Properties:
-            Path: /hello
-            Method: get
-```
-
-## Packaging and deployment
-
-AWS Lambda Golang runtime requires a flat folder with the executable generated on build step. SAM will use `CodeUri` property to know where to look up for the application:
-
-```yaml
-...
-    FirstFunction:
-        Type: AWS::Serverless::Function
-        Properties:
-            CodeUri: hello_world/
-            ...
-```
-
-To deploy your application for the first time, run the following in your shell:
+Let's use the API URL that we found in previous chapter to create and list transactions. We start with creating.
+To create a new transaction send a POST request:
 
 ```bash
-sam deploy --guided
+curl -X POST -H "Content-Type: application/json" -d '{"user_id":"john", "amount":1,"origin":"desktop", "operation_type":"credit"}' $TRANSACTIONS_API
+```
+```bash
+curl -X POST -H "Content-Type: application/json" -d '{"user_id":"john", "amount":1,"origin":"desktop", "operation_type":"debit"}' $TRANSACTIONS_API
 ```
 
-The command will package and deploy your application to AWS, with a series of prompts:
+You would need to define TRANSACTIONS_API endpoint as an environment variable or use real URL instead.
+Use the example above to create a few more transactions.
 
-* **Stack Name**: The name of the stack to deploy to CloudFormation. This should be unique to your account and region, and a good starting point would be something matching your project name.
-* **AWS Region**: The AWS region you want to deploy your app to.
-* **Confirm changes before deploy**: If set to yes, any change sets will be shown to you before execution for manual review. If set to no, the AWS SAM CLI will automatically deploy application changes.
-* **Allow SAM CLI IAM role creation**: Many AWS SAM templates, including this example, create AWS IAM roles required for the AWS Lambda function(s) included to access AWS services. By default, these are scoped down to minimum required permissions. To deploy an AWS CloudFormation stack which creates or modifies IAM roles, the `CAPABILITY_IAM` value for `capabilities` must be provided. If permission isn't provided through this prompt, to deploy this example you must explicitly pass `--capabilities CAPABILITY_IAM` to the `sam deploy` command.
-* **Save arguments to samconfig.toml**: If set to yes, your choices will be saved to a configuration file inside the project, so that in the future you can just re-run `sam deploy` without parameters to deploy changes to your application.
-
-You can find your API Gateway Endpoint URL in the output values displayed after deployment.
-
-### Testing
-
-We use `testing` package that is built-in in Golang and you can simply run the following command to run our tests:
+Now let's list transactions. To list transactions we need to make GET request and use a partition key (user_id) and sort key (ts) as a path parameters:
 
 ```shell
-cd ./hello-world/
-go test -v .
+$TRANSACTIONS_API/{user_id}/{ts}
 ```
-# Appendix
 
-### Golang installation
+Timestamp is used as a prefix (begins_with filter). So to get all transactions that belong to `john` dated by 2024 year we need to send request:
 
-Please ensure Go 1.x (where 'x' is the latest version) is installed as per the instructions on the official golang website: https://golang.org/doc/install
-
-A quickstart way would be to use Homebrew, chocolatey or your linux package manager.
-
-#### Homebrew (Mac)
-
-Issue the following command from the terminal:
 
 ```shell
-brew install golang
+curl -s $TRANSACTIONS_API/john/2024 | jq
+{
+  "items": [
+    {
+      "user_id": "john",
+      "ts": "2024-01-15T18:18:36.819581Z",
+      "tr_id": "1031391a-8188-4cd7-b9f2-5cd6c89a1974",
+      "origin": "desktop",
+      "operation_type": "credit",
+      "amount": 1
+    },
+    {
+      "user_id": "john",
+      "ts": "2024-01-15T18:18:56.639872Z",
+      "tr_id": "f8c49906-551b-4474-80e9-e953ce3edc57",
+      "origin": "desktop",
+      "operation_type": "debit",
+      "amount": 1
+    }
+  ]
+}
 ```
 
-If it's already installed, run the following command to ensure it's the latest version:
+The returned JSON object has 2 fields:
+
+* items - array  of transactions
+* cursor - string, if returned, represents a cursor for the next page. See bellow.
+
+The list request supports following optional query parameters (as url query parameters):
+
+* origin: string
+* operation_type: string
+* limit: number (to limit maximum number of returned records)
+* after: string (cursor pagination parameter to supply to get next page)
+
+Use `cursor` attribute of returned object to get the next page of data.
+
+Let's make a sample query to get john's credit transactions:
+
+```bash
+curl -s "$TRANSACTIONS_API/john/2024?operation_type=credit" | jq
+{
+  "items": [
+    {
+      "user_id": "john",
+      "ts": "2024-01-15T18:18:36.819581Z",
+      "tr_id": "1031391a-8188-4cd7-b9f2-5cd6c89a1974",
+      "origin": "desktop",
+      "operation_type": "credit",
+      "amount": 1
+    }
+  ]
+}
+```
+
+## Limitations and things to improve
+
+It's supposed AWS to scale lambdas according to configured concurrency parameter. But it depends on AWS account settings.
+For example my account currently only have it 10. Which does not allow me to have lambda scaled more than 10 instances.
+It of cause impacts the performance as requests are throttled when all lambdas are up and busy.
+
+Having tamestamp prefix parameter in URL path proved to be not the best option as to filter transactions by minutes
+and further reuires to add `:` symbol and it's a problem to have it in URL path. It works fine in query parameters if replaced
+by `%3A`.
+
+Handlers have basic tests. But though even they are calling DynamoDB internal package, they deserve their own test package.
+
+### Running tests
+
+`docker` and `docker-compose` is required to run tests. As they are used to run local version of dynamodb.
+Use following command to run tests:
 
 ```shell
-brew update
-brew upgrade golang
+make test
 ```
-
-#### Chocolatey (Windows)
-
-Issue the following command from the powershell:
-
-```shell
-choco install golang
-```
-
-If it's already installed, run the following command to ensure it's the latest version:
-
-```shell
-choco upgrade golang
-```
-
-## Bringing to the next level
-
-Here are a few ideas that you can use to get more acquainted as to how this overall process works:
-
-* Create an additional API resource (e.g. /hello/{proxy+}) and return the name requested through this new path
-* Update unit test to capture that
-* Package & Deploy
-
-Next, you can use the following resources to know more about beyond hello world samples and how others structure their Serverless applications:
-
-* [AWS Serverless Application Repository](https://aws.amazon.com/serverless/serverlessrepo/)

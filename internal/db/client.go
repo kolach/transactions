@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/aws/retry"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
@@ -125,7 +127,14 @@ func (c *Client) Scan(ctx context.Context) ([]Transaction, error) {
 // connect connects to DynamoDB
 func connect() *dynamodb.Client {
 	cfg, err := config.LoadDefaultConfig(
-		context.TODO(),
+		context.Background(),
+		config.WithRetryer(func() aws.Retryer {
+			return retry.NewStandard(
+				func(o *retry.StandardOptions) {
+					o.MaxAttempts = 5
+					o.MaxBackoff = 5 * time.Second
+				})
+		}),
 		config.WithEndpointResolverWithOptions(aws.EndpointResolverWithOptionsFunc(
 			func(service, region string, opts ...interface{}) (aws.Endpoint, error) {
 				if service == dynamodb.ServiceID && os.Getenv("LOCAL_DYNAMODB_URL") != "" {
