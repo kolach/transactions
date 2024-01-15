@@ -10,7 +10,7 @@ import (
 	"github.com/aws/aws-lambda-go/events"
 
 	"transactions/internal/db"
-	"transactions/internal/test"
+	"transactions/pkg/test"
 )
 
 func cleanUp() error {

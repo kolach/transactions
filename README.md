@@ -1,35 +1,119 @@
-# transactions
+# Transactions project
 
-This is a sample template for transactions - Below is a brief explanation of what we have generated for you:
+## System design
+
+Transactions project is AWS SAM project that deligates all transactions API to serverless
+lambda funtion interaction with DynamoDB table.
+
+```bash
++------------------+      +---------------------+      +-------------------+
+|                  |      |                     |      |                   |
+|   API Gateway    +----->+   AWS Lambda Func   +----->+    DynamoDB       |
+|                  |      |                     |      |                   |
++------------------+      +---------------------+      +-------------------+
+```
+
+The main benefit of this approach is that it perfectly scheduled horizontally on application
+and database layers and is charged only when it is used.
+
+## Data model
+
+The system design is centerd around multi tenant application where multitude of users are entering their
+transations and have a way to monitor them.
+
+Bellow is the transaction data model:
+
+```bash
++------------------------------------------------------------------------------------------------+
+|                                     Transactions                                               |
++-----------------+-------------------------------+----------+----------+----------------+-------+
+| user_id         | ts                            | tr_id    | origin   | operation_type | amount|
+| (Partition Key) | (Sort Key in ISO 8601)        |          |          |                |       |
++-----------------+-------------------------------+----------+----------+----------------+-------+
+| "User123"       | "2024-01-15T10:00:00.822373Z" | "Trx456" | "Desktop"| "Debit"        | 100.0 |
+| "User123"       | "2024-01-16T11:30:00.183374Z" | "Trx457" | "iOS"    | "Credit"       | 50.0  |
+| "User456"       | "2024-01-15T15:45:00.382415Z" | "Trx458" | "Android"| "Debit"        | 200.0 |
+| ...             | ...                           | ...      | ...      | ...            | ...   |
++-----------------+-------------------------------+----------+----------+----------------+-------+
+
+```
+
+User ID (user_id) is set as partition in attempt to evenly distribute incoming transactions across dynamodb shards.
+Timstamp (ts) is used as a sort key.
+
+Together they form a primary key. Should there be any concern that there can exist transactions with same
+user ID and timestamp (in microseconds) the design can accomodate it with making sort key as composition key
+of typestamp and the unique transaction ID (tr_id).
+
+## Project structure
+
+These are main files for transactions with brief explanation:
 
 ```bash
 .
-├── Makefile                    <-- Make to automate build
+├── Makefile                    <-- Automated tasks
 ├── README.md                   <-- This instructions file
-├── hello-world                 <-- Source code for a lambda function
-│   ├── main.go                 <-- Lambda function code
-│   └── main_test.go            <-- Unit tests
-└── template.yaml
+├── cmd                         <-- Root directory for lambda function and cli apps
+│   ├── transactions            <-- Lambda function code
+│   │   ├── main.go             <-- Lambda function code
+│   │   └── main-test.go        <-- Lambda function tests
+│   └── populate                <-- Lambda function code
+│       └── main.go             <-- Script to massively call your lambda functions to add new random transactions
+├── internal                    <-- Root directory for internal packages
+│   └── db                      <-- Package to work with DynamoDB (add, remove, list, scan records)
+│       ├── client.go           <-- Client to perform all CRUD operations
+│       ├── transaction.go      <-- Transaction data model
+│       ├── query.go            <-- Query interface and convertion helpers
+│       └── util.go             <-- helper functions
+├── swagger.yaml                <-- API documentation
+└── template.yaml               <-- SAM template file
 ```
 
-## Requirements
+## Prerequisites
 
-* AWS CLI already configured with Administrator permission
-* [Docker installed](https://www.docker.com/community-edition)
-* [Golang](https://golang.org)
-* SAM CLI - [Install the SAM CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-install.html)
+The prerequisites to deploy the project are pretty common. If you are already got your hands dirty with AWS services,
+most likely you already have it all installed.
 
-## Setup process
+Follow the [link](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/prerequisites.html) for details
+and it'll guide you through the following steps:
 
-### Installing dependencies & building the target 
+1. Sign up for an AWS account
+2. Create an IAM user account
+3. Create an access key ID and secret access key
+4. Install the AWS CLI
+5. Use the AWS CLI to configure AWS credentials
 
-In this example we use the built-in `sam build` to automatically download all the dependencies and package our build target.   
-Read more about [SAM Build here](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-cli-command-reference-sam-build.html) 
+Then install SAM CLI:
+Follow this [link](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html) for details
 
-The `sam build` command is wrapped inside of the `Makefile`. To execute this simply run
- 
+### Building and deploying the target
+
+Building the target:
+
 ```shell
-make
+make build
+```
+
+Deploying the target:
+
+```shell
+make deploy
+```
+
+Answer the questions to make a deployment. Pay attention to final output parameters to grab your TransactionsAPI url.
+
+
+```shell
+....
+Key                 TransactionsAPI
+Description         API Gateway endpoint URL for Prod environment for Transactions Function
+Value               https://xyzxy18zxy.execute-api.us-east-1.amazonaws.com/Prod/transactions/
+
+```
+
+In the example above the following URL is the transactions API URL to interact with:
+```shell
+https://xyzxy18zxy.execute-api.us-east-1.amazonaws.com/Prod/transactions/
 ```
 
 ### Local development

@@ -1,0 +1,91 @@
+openapi: 3.0.0
+info:
+  title: Transactions API
+  version: 1.0.0
+paths:
+  /transactions/{user_id}/{ts}:
+    get:
+      summary: Get user transactions
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: ts
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: origin
+          in: query
+          required: false # This parameter is optional
+          schema:
+            type: string
+        - name: operation_type
+          in: query
+          required: false # This parameter is optional
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false # This parameter is optional
+          schema:
+            type: integer
+            minimum: 0 # Positive number
+        - name: after
+          in: query
+          required: false # This parameter is optional
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListResponse'
+        '500':
+          description: Internal server error
+  /transactions:
+    post:
+      summary: Create a new transaction
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Transaction'
+      responses:
+        '201':
+          description: Transaction created successfully
+        '400':
+          description: Bad request
+        '500':
+          description: Internal server error
+components:
+  schemas:
+    ListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Transaction'
+        cursor:
+          type: string
+    Transaction:
+      type: object
+      properties:
+        user_id:
+          type: string
+        ts:
+          type: string
+        tr_id:
+          type: string
+        origin:
+          type: string
+        operation_type:
+          type: string
+        amount:
+          type: number
