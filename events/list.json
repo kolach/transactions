@@ -1,14 +1,15 @@
 {
-    "body": "{\"message\": \"hello world\"}",
+    "body": "{}",
     "resource": "/transactions",
-    "path": "/transactions",
+    "path": "/transactions/",
     "httpMethod": "GET",
     "isBase64Encoded": false,
     "queryStringParameters": {
-      "foo": "bar"
+			"limit": "100"
     },
     "pathParameters": {
-      "proxy": "/path/to/resource"
+			"user_id": "nick",
+			"ts": "2024"
     },
     "stageVariables": {
       "baz": "qux"

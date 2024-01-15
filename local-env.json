@@ -1,0 +1,5 @@
+{
+  "TransactionsFunction": {
+		"TABLE_NAME": "Transactions"
+  }
+}

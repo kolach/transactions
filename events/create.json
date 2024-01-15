@@ -1,5 +1,5 @@
 {
-    "body": "{\"id\": \"01f8f7ba-11eb-4f2a-b0fa-a53274fd55ca\"}",
+    "body": "{\"user_id\": \"nick\",\"amount\": 1, \"origin\": \"local-test\", \"operation_type\":\"credit\"}",
     "resource": "/transactions",
     "path": "/transactions",
     "httpMethod": "POST",
