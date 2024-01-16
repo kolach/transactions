@@ -1,8 +1,5 @@
 .PHONY: build transactions-table clean rebuild test deploy
 
-transactions-table:
-	./scripts/create_test_table.sh
-
 clean:
 	rm -rf ./aws-sam
 
@@ -11,16 +8,20 @@ build:
 
 rebuild: clean build
 
-test: transactions-table
-	docker-compose start
+test:
+	docker-compose pull
+	docker-compose up -d
+	./scripts/create_test_table.sh
 	LOCAL_DYNAMODB_URL=http://localhost:8000 go test ./...
-	docker-compose stop
+	docker-compose down
 
 test-coverage:
-	docker-compose start
+	docker-compose pull
+	docker-compose up -d
+	./scripts/create_test_table.sh
 	LOCAL_DYNAMODB_URL=http://localhost:8000 go test ./... -coverprofile cover.out
 	go tool cover -html=cover.out -o cover.html
-	docker-compose stop
+	docker-compose down
 
 deploy: rebuild
 	sam deploy --guided
